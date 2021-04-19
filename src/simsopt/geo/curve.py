@@ -316,6 +316,7 @@ class RotatedCurve(sgpp.Curve, Curve):
         self.curve = curve
         sgpp.Curve.__init__(self, curve.quadpoints)
         Curve.__init__(self)
+        self.depends_on = [curve]
         self.rotmat = np.asarray([
             [cos(theta), -sin(theta), 0],
             [sin(theta), cos(theta), 0],
@@ -327,10 +328,13 @@ class RotatedCurve(sgpp.Curve, Curve):
         curve.dependencies.append(self)
 
     def get_dofs(self):
-        return self.curve.get_dofs()
+        return np.asarray([])
+        # return self.curve.get_dofs()
 
-    def set_dofs_impl(self, d):
-        return self.curve.set_dofs(d)
+    def set_dofs(self, dofs):
+        pass
+    # def set_dofs_impl(self, d):
+    #     return self.curve.set_dofs(d)
 
     def num_dofs(self):
         return self.curve.num_dofs()

@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+import numpy as np
+import sys
+from simsopt.geo.coilcollection import CoilCollection
+from simsopt.geo.curveobjectives import MinimumDistance, CurveLength
+from simsopt.core.least_squares_problem import LeastSquaresProblem
+from simsopt.solve.serial_solve import least_squares_serial_solve
+import os
+sys.path.append(os.path.join("..", "tests", "geo"))
+from surface_test_helpers import get_ncsx_data
+
+"""
+"""
+
+curves, currents, ma = get_ncsx_data(Nt_coils=1)
+
+stellarator = CoilCollection(curves, currents, 3, True)
+
+Jmindist = MinimumDistance(stellarator.coils, 0.4, gradient_reduction=stellarator.reduce_coefficient_derivatives)
+print(Jmindist.dJ().shape)
+
+Jlens = [CurveLength(c) for c in curves]
+print(Jmindist.J())
+print([J.J() for J in Jlens])
+
+prob = LeastSquaresProblem(
+    [(Jmindist, 0.0, 1.0)] \
+    + [(J, J.J(), 1.0) for J in Jlens]
+)
+print(sum([c.num_dofs() for c in curves]), "curve dofs")
+print(prob.x.shape)
+
+for c in stellarator.coils:
+    c.plot_mayavi(show=False)
+fd_jac = prob.dofs.fd_jac()
+print("fd_jac", fd_jac)
+least_squares_serial_solve(prob, xtol=1e-10)
+print(Jmindist.J())
+
+for c in stellarator.coils:
+    c.plot_mayavi(show=False)
+from mayavi import mlab
+mlab.show()

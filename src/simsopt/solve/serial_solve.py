@@ -35,12 +35,13 @@ def least_squares_serial_solve(prob, grad=None, **kwargs):
     def objective(x):
         nonlocal logfile_started, logfile, residuals_file, nevals
         success = True
-        try:
-            f_unshifted = prob.dofs.f(x)
-        except:
-            logger.info("Exception caught during function evaluation")
-            f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
-            success = False
+        f_unshifted = prob.dofs.f(x)
+        # try:
+        #     f_unshifted = prob.dofs.f(x)
+        # except:
+        #     logger.info("Exception caught during function evaluation")
+        #     f_unshifted = np.full(prob.dofs.nvals, 1.0e12)
+        #     success = False
 
         f_shifted = prob.f_from_unshifted(f_unshifted)
         objective_val = prob.objective_from_shifted_f(f_shifted)

@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import numpy as np
 from .jit import jit
 from simsopt.core.optimizable import Optimizable
+from simsopt.geo.curve import Curve
 
 @jit
 def curve_length_pure(l):
@@ -79,9 +80,11 @@ def distance_pure(gamma1, l1, gamma2, l2, minimum_distance):
 
 class MinimumDistance(Optimizable):
 
-    def __init__(self, curves, minimum_distance):
+    def __init__(self, curves, minimum_distance, gradient_reduction=np.concatenate):
+        self.depends_on = []
+        self.gradient_reduction = gradient_reduction
         self.curves = curves
-        self.depends_on = ["curves"]
+        self.depends_on = self.curves
         self.minimum_distance = minimum_distance
         
         self.J_jax = jit(lambda gamma1, l1, gamma2, l2: distance_pure(gamma1, l1, gamma2, l2, minimum_distance))
@@ -90,8 +93,9 @@ class MinimumDistance(Optimizable):
         self.thisgrad2 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=2)(gamma1, l1, gamma2, l2))
         self.thisgrad3 = jit(lambda gamma1, l1, gamma2, l2: grad(self.J_jax, argnums=3)(gamma1, l1, gamma2, l2))
 
+
     def J(self):
-        res = 0
+        res = 0.
         for i in range(len(self.curves)):
             gamma1 = self.curves[i].gamma()
             l1 = self.curves[i].gammadash()
@@ -137,4 +141,4 @@ class MinimumDistance(Optimizable):
                     dgammadash_by_dcoeff_vjp_vecs[j] += temp
 
         res = [self.curves[i].dgamma_by_dcoeff_vjp(dgamma_by_dcoeff_vjp_vecs[i]) + self.curves[i].dgammadash_by_dcoeff_vjp(dgammadash_by_dcoeff_vjp_vecs[i]) for i in range(len(self.curves))]
-        return res
+        return self.gradient_reduction(res)

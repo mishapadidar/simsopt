@@ -30,9 +30,12 @@ def get_owners(obj, owners_so_far=[]):
     # not depend on the dofs of any other objects.
     if hasattr(obj, 'depends_on'):
         for j in obj.depends_on:
-            subobj = getattr(obj, j)
-            if subobj in owners_so_far:
-                raise RuntimeError('Circular dependency detected among the objects')
+            if isinstance(j, str):
+                subobj = getattr(obj, j)
+            else:
+                subobj = j
+            # if subobj in owners_so_far:
+            #     raise RuntimeError('Circular dependency detected among the objects')
             owners += get_owners(subobj, owners_so_far=owners)
     return owners
 
