@@ -16,6 +16,7 @@ class GaussianSampler():
         n = len(xs)
         self.n_derivs = n_derivs
         cov_mat = np.zeros((n*(n_derivs+1), n*(n_derivs+1)))
+
         def kernel(x, y):
             return sum(sigma**2*exp(-(x-y+i)**2/length_scale**2) for i in range(-2, 3))
         for ii in range(n_derivs+1):
@@ -31,8 +32,8 @@ class GaussianSampler():
                     for j in range(n):
                         x = xs[i]
                         y = xs[j]
-                        if abs(x-y)>0.5:
-                            if y>0.5:
+                        if abs(x-y) > 0.5:
+                            if y > 0.5:
                                 y -= 1
                             else:
                                 x -= 1
