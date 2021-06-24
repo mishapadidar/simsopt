@@ -106,7 +106,7 @@ class Testing(unittest.TestCase):
     def subtest_curve_first_derivative(self, curvetype, rotated):
         epss = [0.5**i for i in range(10, 15)]
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
-        curve = get_curve(curvetype, rotated, x)
+        curve = get_curve(curvetype, rotated, x=x)
         f0 = curve.gamma()[0]
         deriv = curve.gammadash()[0]
         err_old = 1e6
@@ -126,7 +126,7 @@ class Testing(unittest.TestCase):
     def subtest_curve_second_derivative(self, curvetype, rotated):
         epss = [0.5**i for i in range(10, 15)]
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
-        curve = get_curve(curvetype, rotated, x)
+        curve = get_curve(curvetype, rotated, x=x)
         f0 = curve.gammadash()[0]
         deriv = curve.gammadashdash()[0]
         err_old = 1e6
@@ -146,7 +146,7 @@ class Testing(unittest.TestCase):
     def subtest_curve_third_derivative(self, curvetype, rotated):
         epss = [0.5**i for i in range(10, 15)] 
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
-        curve = get_curve(curvetype, rotated, x)
+        curve = get_curve(curvetype, rotated, x=x)
         f0 = curve.gammadashdash()[0]
         deriv = curve.gammadashdashdash()[0]
         err_old = 1e6
@@ -240,7 +240,7 @@ class Testing(unittest.TestCase):
     def subtest_curve_kappa_first_derivative(self, curvetype, rotated):
         epss = [0.5**i for i in range(12, 17)] 
         x = np.asarray([0.1234] + [0.1234 + eps for eps in epss])
-        ma = get_curve(curvetype, rotated, x)
+        ma = get_curve(curvetype, rotated, x=x)
         f0 = ma.kappa()[0]
         deriv = ma.kappadash()[0]
         err_old = 1e6
@@ -371,7 +371,7 @@ class Testing(unittest.TestCase):
                     self.subtest_curve_frenet_frame_derivative(curvetype, rotated)
 
     def subtest_curve_dkappa_by_dphi_derivative(self, curvetype, rotated, perturbed):
-        ma = get_curve(curvetype, rotated, perturbed)
+        ma = get_curve(curvetype, rotated, perturbed=perturbed)
         coeffs = ma.get_dofs()
 
         def f(dofs):
