@@ -4,6 +4,21 @@ from simsopt.geo.magneticfield import MagneticField
 from simsopt.geo.curve import Curve
 
 
+class Coil(sopp.Coil):
+
+    def __init__(self, coil, current):
+        self.__coil = coil
+        self.__current = current
+        sopp.Coil.__init__(self, coil, current)
+
+
+class Current(sopp.Current):
+
+    def __init__(self, current):
+        self.__current = current
+        sopp.Current.__init__(self, current)
+
+
 class BiotSavart(sopp.BiotSavart, MagneticField):
     r"""
     Computes the MagneticField induced by a list of closed curves :math:`\Gamma_k` with electric currents :math:`I_k`.
@@ -21,8 +36,8 @@ class BiotSavart(sopp.BiotSavart, MagneticField):
         assert len(coils) == len(coil_currents)
         assert all(isinstance(item, Curve) for item in coils)
         assert all(isinstance(item, float) for item in coil_currents)
-        self.currents_optim = [sopp.Current(c) for c in coil_currents]
-        self.coils_optim = [sopp.Coil(curv, curr) for curv, curr in zip(coils, self.currents_optim)]
+        self.currents_optim = [Current(c) for c in coil_currents]
+        self.coils_optim = [Coil(curv, curr) for curv, curr in zip(coils, self.currents_optim)]
         self.coils = coils
         self.coil_currents = coil_currents
         MagneticField.__init__(self)
