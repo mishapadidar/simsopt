@@ -1,9 +1,8 @@
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
+namespace py = pybind11;
 #include "xtensor-python/pyarray.hpp"     // Numpy bindings
 typedef xt::pyarray<double> PyArray;
-#include "py_shared_ptr.h"
-PYBIND11_DECLARE_HOLDER_TYPE(T, py_shared_ptr<T>);
 using std::shared_ptr;
 
 
@@ -89,16 +88,16 @@ template <typename T, typename S> void register_common_curve_methods(S &c) {
 }
 
 void init_curves(py::module_ &m) {
-    auto pycurve = py::class_<PyCurve, py_shared_ptr<PyCurve>, PyCurveTrampoline<PyCurve>>(m, "Curve")
+    auto pycurve = py::class_<PyCurve, PyCurveTrampoline<PyCurve>, shared_ptr<PyCurve>>(m, "Curve")
         .def(py::init<vector<double>>());
     register_common_curve_methods<PyCurve>(pycurve);
 
-    auto pycurvexyzfourier = py::class_<PyCurveXYZFourier, py_shared_ptr<PyCurveXYZFourier>, PyCurveXYZFourierTrampoline<PyCurveXYZFourier>, PyCurve>(m, "CurveXYZFourier")
+    auto pycurvexyzfourier = py::class_<PyCurveXYZFourier, PyCurveXYZFourierTrampoline<PyCurveXYZFourier>, shared_ptr<PyCurveXYZFourier>, PyCurve>(m, "CurveXYZFourier")
         .def(py::init<vector<double>, int>())
         .def_readonly("dofs", &PyCurveXYZFourier::dofs);
     register_common_curve_methods<PyCurveXYZFourier>(pycurvexyzfourier);
 
-    auto pycurverzfourier = py::class_<PyCurveRZFourier, py_shared_ptr<PyCurveRZFourier>, PyCurveRZFourierTrampoline<PyCurveRZFourier>, PyCurve>(m, "CurveRZFourier")
+    auto pycurverzfourier = py::class_<PyCurveRZFourier, PyCurveRZFourierTrampoline<PyCurveRZFourier>, shared_ptr<PyCurveRZFourier>, PyCurve>(m, "CurveRZFourier")
         //.def(py::init<int, int>())
         .def(py::init<vector<double>, int, int, bool>())
         .def_readwrite("rc", &PyCurveRZFourier::rc)

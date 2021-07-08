@@ -365,9 +365,10 @@ class InterpolatedField(sopp.InterpolatedField, MagneticField):
     This resulting interpolant can then be evaluated very quickly.
     """
 
-    def __init__(self, *args):
+    def __init__(self, underlying_field, *args):
+        self.__underlying_field = underlying_field
         MagneticField.__init__(self)
-        sopp.InterpolatedField.__init__(self, *args)
+        sopp.InterpolatedField.__init__(self, underlying_field, *args)
 
     def to_vtk(self, filename, h=0.1):
         """Export the field evaluated on a regular grid for visualisation with e.g. Paraview."""
