@@ -1044,7 +1044,8 @@ class CPPOptimizable(Optimizable, metaclass=OptimizableCPPMeta):
         # self._dofs.loc[self._dofs.free, '_x'] = x
         # self.new_x = True
         Optimizable.local_x.fset(self, x)
-        self.local_dof_setter(self.local_full_x)
+        if len(self.local_full_x) > 0:
+            self.local_dof_setter(self.local_full_x)
 
     local_x = property(
         Optimizable.local_x.fget,

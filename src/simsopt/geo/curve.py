@@ -7,6 +7,8 @@ import jax.numpy as jnp
 
 import simsoptpp as sopp
 from .._core.optimizable import Optimizable
+from .._core.graph_optimizable import CPPOptimizable
+from .._core.derivative import Derivative
 
 
 @jit
@@ -100,6 +102,33 @@ class Curve(Optimizable):
         mlab.plot3d(g[:, 0], g[:, 1], g[:, 2])
         if show:
             mlab.show()
+
+    def dgamma_by_dcoeff_vjp_graph(self, v):
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T  \frac{\partial \Gamma}{\partial \mathbf c} 
+
+        where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z coordinates
+        of the curve.
+        """
+
+        return Derivative({self: self.dgamma_by_dcoeff_vjp(v)})
+
+    def dgammadash_by_dcoeff_vjp_graph(self, v):
+        r"""
+        This function returns 
+
+        .. math::
+            \mathbf v^T \frac{\partial \Gamma'}{\partial \mathbf c}
+
+        where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z coordinates
+        of the curve.
+        """
+
+        return Derivative({self: self.dgammadash_by_dcoeff_vjp(v)})
+
 
     def dincremental_arclength_by_dcoeff_vjp(self, v):
         r"""
@@ -537,7 +566,7 @@ class JaxCurve(sopp.Curve, Curve):
         return self.dtorsion_by_dcoeff_vjp_jax(self.get_dofs(), v)
 
 
-class RotatedCurve(sopp.Curve, Curve):
+class RotatedCurve(sopp.Curve, Curve, CPPOptimizable):
     """
     RotatedCurve inherits from the Curve base class.  It takes an input a Curve, rotates it by ``theta``, and
     optionally completes a reflection when ``flip=True``.
@@ -556,27 +585,14 @@ class RotatedCurve(sopp.Curve, Curve):
             self.rotmat = self.rotmat @ np.asarray([[1, 0, 0], [0, -1, 0], [0, 0, -1]])
         self.rotmatT = self.rotmat.T
         curve.dependencies.append(self)
+        CPPOptimizable.__init__(self, x0=np.asarray([]), opts_in=[curve])
 
     def get_dofs(self):
         """
         This function returns the curve dofs.
         """
 
-        return self.curve.get_dofs()
-
-    def set_dofs_impl(self, d):
-        """
-        This function sets the curve dofs.
-        """
-
-        return self.curve.set_dofs(d)
-
-    def num_dofs(self):
-        """
-        This function returns the number of dofs associated to the curve.
-        """
-
-        return self.curve.num_dofs()
+        return np.asarray([])
 
     def gamma_impl(self, gamma, quadpoints):
         r"""
@@ -684,6 +700,20 @@ class RotatedCurve(sopp.Curve, Curve):
 
         return self.curve.dgamma_by_dcoeff_vjp(v @ self.rotmat.T)
 
+    def dgamma_by_dcoeff_vjp_graph(self, v):
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T \frac{\partial \Gamma}{\partial \mathbf c} 
+
+        where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z
+        coordinates of the curve.
+
+        """
+
+        return self.curve.dgamma_by_dcoeff_vjp_graph(v @ self.rotmat.T)
+
     def dgammadash_by_dcoeff_vjp(self, v):
         r"""
         This function returns the vector Jacobian product
@@ -697,6 +727,20 @@ class RotatedCurve(sopp.Curve, Curve):
         """
 
         return self.curve.dgammadash_by_dcoeff_vjp(v @ self.rotmat.T)
+
+    def dgammadash_by_dcoeff_vjp_graph(self, v):
+        r"""
+        This function returns the vector Jacobian product
+
+        .. math::
+            v^T \frac{\partial \Gamma'}{\partial \mathbf c} 
+
+        where :math:`\mathbf{c}` are the curve dofs, and :math:`\Gamma` are the x, y, z
+        coordinates of the curve.
+
+        """
+
+        return self.curve.dgammadash_by_dcoeff_vjp_graph(v @ self.rotmat.T)
 
     def dgammadashdash_by_dcoeff_vjp(self, v):
         r"""

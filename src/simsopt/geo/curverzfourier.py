@@ -2,9 +2,10 @@ import numpy as np
 
 import simsoptpp as sopp
 from .curve import Curve
+from .._core.graph_optimizable import CPPOptimizable
 
 
-class CurveRZFourier(sopp.CurveRZFourier, Curve):
+class CurveRZFourier(sopp.CurveRZFourier, Curve, CPPOptimizable):
     r"""
     CurveRZFourier is a curve that is represented in cylindrical
        coordinates using the following Fourier series:
@@ -33,6 +34,7 @@ class CurveRZFourier(sopp.CurveRZFourier, Curve):
             quadpoints = list(quadpoints)
         sopp.CurveRZFourier.__init__(self, quadpoints, order, nfp, stellsym)
         Curve.__init__(self)
+        CPPOptimizable.__init__(self, dof_setter=self.set_dofs_impl, dof_getter=self.get_dofs)
 
     def get_dofs(self):
         """

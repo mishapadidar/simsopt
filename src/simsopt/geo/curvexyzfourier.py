@@ -7,9 +7,10 @@ import jax.numpy as jnp
 from .curve import JaxCurve
 from .curve import Curve
 import simsoptpp as sopp
+from .._core.graph_optimizable import CPPOptimizable
 
 
-class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
+class CurveXYZFourier(sopp.CurveXYZFourier, Curve, CPPOptimizable):
 
     r"""
        CurveXYZFourier is a curve that is represented in Cartesian
@@ -33,6 +34,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
             quadpoints = list(quadpoints)
         sopp.CurveXYZFourier.__init__(self, quadpoints, order)
         Curve.__init__(self)
+        CPPOptimizable.__init__(self, dof_setter=self.set_dofs_impl, dof_getter=self.get_dofs)
 
     def get_dofs(self):
         """
@@ -40,13 +42,19 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve):
         """
         return np.asarray(sopp.CurveXYZFourier.get_dofs(self))
 
-    def set_dofs(self, dofs):
+    def set_dofs_impl(self, dofs):
         """
         This function sets the dofs associated to this object.
         """
         sopp.CurveXYZFourier.set_dofs(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()
+
+    def set_dofs(self, dofs):
+        """
+        This function sets the dofs associated to this object.
+        """
+        self.x = dofs
 
     @staticmethod
     def load_curves_from_file(filename, order=None, ppp=20, delimiter=','):
@@ -94,7 +102,7 @@ def jaxfouriercurve_pure(dofs, quadpoints, order):
     return gamma
 
 
-class JaxCurveXYZFourier(JaxCurve):
+class JaxCurveXYZFourier(JaxCurve, CPPOptimizable):
 
     """
     A Python+Jax implementation of the CurveXYZFourier class.  There is
@@ -111,6 +119,7 @@ class JaxCurveXYZFourier(JaxCurve):
         self.order = order
         self.coefficients = [np.zeros((2*order+1,)), np.zeros((2*order+1,)), np.zeros((2*order+1,))]
         super().__init__(quadpoints, pure)
+        CPPOptimizable.__init__(self, dof_setter=self.set_dofs, dof_getter=self.get_dofs)
 
     def num_dofs(self):
         """

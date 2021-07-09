@@ -171,6 +171,3 @@ void biot_savart_vjp_kernel(vector_type& pointsx, vector_type& pointsy, vector_t
         }
     }
 }
-
-
-

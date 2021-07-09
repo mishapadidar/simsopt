@@ -62,3 +62,29 @@ void biot_savart_vjp(Array& points, vector<Array>& gammas, vector<Array>& dgamma
             res_dB[i] *= fak;
     }
 }
+
+
+void biot_savart_vjp_new(Array& points, vector<Array>& gammas, vector<Array>& dgamma_by_dphis, vector<double>& currents, Array& v, vector<Array>& res_gamma, vector<Array>& res_dgamma_by_dphi, Array& vgrad, vector<Array>& res_grad_gamma, vector<Array>& res_grad_dgamma_by_dphi) {
+    auto pointsx = vector_type(points.shape(0), 0);
+    auto pointsy = vector_type(points.shape(0), 0);
+    auto pointsz = vector_type(points.shape(0), 0);
+    for (int i = 0; i < points.shape(0); ++i) {
+        pointsx[i] = points(i, 0);
+        pointsy[i] = points(i, 1);
+        pointsz[i] = points(i, 2);
+    }
+
+    int num_coils  = gammas.size();
+
+    #pragma omp parallel for
+    for(int i=0; i<num_coils; i++) {
+        biot_savart_vjp_kernel<Array, 1>(pointsx, pointsy, pointsz, gammas[i], dgamma_by_dphis[i],
+                v, res_gamma[i], res_dgamma_by_dphi[i],
+                vgrad, res_grad_gamma[i], res_grad_dgamma_by_dphi[i]);
+        double fak = (currents[i] * 1e-7/gammas[i].shape(0));
+        res_gamma[i] *= fak;
+        res_dgamma_by_dphi[i] *= fak;
+        res_grad_gamma[i] *= fak;
+        res_grad_dgamma_by_dphi[i] *= fak;
+    }
+}
