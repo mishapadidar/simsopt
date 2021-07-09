@@ -4,6 +4,7 @@ import jax.numpy as jnp
 from .jit import jit
 
 from .._core.optimizable import Optimizable
+from .._core.derivative import Derivative
 
 
 @jit
@@ -39,6 +40,12 @@ class CurveLength(Optimizable):
         This returns the derivative of the quantity with respect to the curve dofs.
         """
         return self.curve.dincremental_arclength_by_dcoeff_vjp(self.thisgrad(self.curve.incremental_arclength()))
+
+    def dJ_graph(self):
+        """
+        This returns the derivative of the quantity with respect to the curve dofs.
+        """
+        return Derivative({self.curve: self.curve.dincremental_arclength_by_dcoeff_vjp(self.thisgrad(self.curve.incremental_arclength()))})
 
 
 @jit

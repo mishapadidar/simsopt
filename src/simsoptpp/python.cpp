@@ -34,7 +34,7 @@ PYBIND11_MODULE(simsoptpp, m) {
     m.def("biot_savart", &biot_savart);
     m.def("biot_savart_B", &biot_savart_B);
     m.def("biot_savart_vjp", &biot_savart_vjp);
-    m.def("biot_savart_vjp_new", &biot_savart_vjp_new);
+    m.def("biot_savart_vjp_graph", &biot_savart_vjp_graph);
 
     m.def("DommaschkB" , &DommaschkB);
     m.def("DommaschkdB", &DommaschkdB);

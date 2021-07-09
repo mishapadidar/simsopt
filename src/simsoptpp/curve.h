@@ -102,15 +102,27 @@ class Curve {
             }
         }
 
-        void set_dofs(const vector<double>& _dofs) {
+        void set_dofs_cpp(const vector<double>& _dofs) {
             this->set_dofs_impl(_dofs);
             this->invalidate_cache();
         }
 
+        virtual void set_dofs_graph(const vector<double>& _dofs) {
+            this->set_dofs_cpp(_dofs);
+        }
+        
+        void set_dofs(const vector<double>& _dofs) {
+            set_dofs_graph(_dofs);
+        }
+
+        //set_dofs     --> set_dofs_graph --> set_dofs_cpp     --> set_dofs_impl
+        //                 self.x = dofs       invalidate_cache     update c++ data
+
         void least_squares_fit(Array& target_values);
 
-        virtual int num_dofs() = 0;
         virtual void set_dofs_impl(const vector<double>& _dofs) = 0;
+
+        virtual int num_dofs() = 0;
         virtual vector<double> get_dofs() = 0;
 
 /* The interface for gamma_impl is a little different than the other ones, in

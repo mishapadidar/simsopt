@@ -14,6 +14,10 @@ template <class CurveBase = PyCurve> class PyCurveTrampoline : public CurveBase 
             PYBIND11_OVERLOAD_PURE(int, CurveBase, num_dofs);
         }
 
+        virtual void set_dofs_graph(const vector<double>& _dofs) override {
+            PYBIND11_OVERLOAD(void, CurveBase, set_dofs_graph, _dofs);
+        }
+
         virtual void set_dofs_impl(const vector<double>& _dofs) override {
             PYBIND11_OVERLOAD_PURE(void, CurveBase, set_dofs_impl, _dofs);
         }

@@ -24,7 +24,7 @@ template <class PyCurveXYZFourierBase = PyCurveXYZFourier> class PyCurveXYZFouri
         }
 
         void set_dofs_impl(const vector<double>& _dofs) override {
-            PyCurveXYZFourierBase::set_dofs_impl(_dofs);
+            PYBIND11_OVERLOAD(void, PyCurveXYZFourierBase, set_dofs_impl, _dofs);
         }
 
         vector<double> get_dofs() override {
@@ -45,7 +45,7 @@ template <class PyCurveRZFourierBase = PyCurveRZFourier> class PyCurveRZFourierT
         }
 
         void set_dofs_impl(const vector<double>& _dofs) override {
-            PyCurveRZFourierBase::set_dofs_impl(_dofs);
+            PYBIND11_OVERLOAD(void, PyCurveRZFourierBase, set_dofs_impl, _dofs);
         }
 
         vector<double> get_dofs() override {
@@ -83,6 +83,7 @@ template <typename T, typename S> void register_common_curve_methods(S &c) {
      .def("least_squares_fit", &T::least_squares_fit)
 
      .def("set_dofs", &T::set_dofs)
+     .def("set_dofs_cpp", &T::set_dofs_cpp)
      .def("set_dofs_impl", &T::set_dofs_impl)
      .def("get_dofs", &T::get_dofs)
      .def("num_dofs", &T::num_dofs)

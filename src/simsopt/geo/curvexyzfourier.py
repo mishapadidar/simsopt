@@ -34,7 +34,7 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve, CPPOptimizable):
             quadpoints = list(quadpoints)
         sopp.CurveXYZFourier.__init__(self, quadpoints, order)
         Curve.__init__(self)
-        CPPOptimizable.__init__(self, dof_setter=self.set_dofs_impl, dof_getter=self.get_dofs)
+        CPPOptimizable.__init__(self, dof_setter=self.set_dofs_cpp, dof_getter=self.get_dofs)
 
     def get_dofs(self):
         """
@@ -42,19 +42,17 @@ class CurveXYZFourier(sopp.CurveXYZFourier, Curve, CPPOptimizable):
         """
         return np.asarray(sopp.CurveXYZFourier.get_dofs(self))
 
-    def set_dofs_impl(self, dofs):
-        """
-        This function sets the dofs associated to this object.
-        """
-        sopp.CurveXYZFourier.set_dofs(self, dofs)
-        for d in self.dependencies:
-            d.invalidate_cache()
-
-    def set_dofs(self, dofs):
+    def set_dofs_graph(self, dofs):
         """
         This function sets the dofs associated to this object.
         """
         self.x = dofs
+        sopp.CurveXYZFourier.set_dofs_cpp(self, dofs)
+
+    def set_dofs_impl(self, dofs):
+        sopp.CurveXYZFourier.set_dofs_impl(self, dofs)
+        for d in self.dependencies:
+            d.invalidate_cache()
 
     @staticmethod
     def load_curves_from_file(filename, order=None, ppp=20, delimiter=','):

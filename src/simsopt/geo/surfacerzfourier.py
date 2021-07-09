@@ -285,8 +285,15 @@ class SurfaceRZFourier(sopp.SurfaceRZFourier, Surface):
 
         return s
 
-    def set_dofs(self, dofs):
-        sopp.SurfaceRZFourier.set_dofs(self, dofs)
+    def set_dofs_graph(self, dofs):
+        """
+        This function sets the dofs associated to this object.
+        """
+        self.x = dofs
+        sopp.CurveXYZFourier.set_dofs_cpp(self, dofs)
+
+    def set_dofs_impl(self, dofs):
+        sopp.CurveXYZFourier.set_dofs_impl(self, dofs)
         for d in self.dependencies:
             d.invalidate_cache()
 

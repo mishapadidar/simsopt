@@ -53,7 +53,7 @@ class SquaredFlux(CPPOptimizable):
         unitn = n * (1./absn)[:,:,None]
         Bcoil = self.field.set_points(xyz.reshape((-1, 3))).B().reshape(xyz.shape)
         Bcoil_n = np.sum(Bcoil*unitn, axis=2)
-        B_n = (Bcoil_n - target)
+        B_n = (Bcoil_n - self.target)
         return 0.5 * np.mean(B_n**2 * absn)
 
     def dJ(self):
@@ -63,7 +63,7 @@ class SquaredFlux(CPPOptimizable):
         unitn = n * (1./absn)[:,:,None]
         Bcoil = self.field.set_points(xyz.reshape((-1, 3))).B().reshape(xyz.shape)
         Bcoil_n = np.sum(Bcoil*unitn, axis=2)
-        B_n = (Bcoil_n - target)
+        B_n = (Bcoil_n - self.target)
         dJdB = (B_n[...,None] * unitn * absn[...,None])/absn.size
         dJdB = dJdB.reshape((-1, 3))
         return self.field.B_vjp_graph(dJdB)
@@ -77,6 +77,7 @@ J = SquaredFlux(surface, target, bs)
 print(J.x)
 J.J()
 dJ = J.dJ()
+print(dJ(curves[0]))
 print(dJ.data)
 dJvec = np.concatenate([dJ.data[d] for d in dJ.data])
 x = J.x
@@ -92,3 +93,5 @@ for eps in [1e-2, 1e-3, 1e-4, 1e-5]:
     dJest = (Jp-Jm)/(2*eps)
     print(dJest, dJh, dJest-dJh)
     
+import IPython; IPython.embed()
+import sys; sys.exit()

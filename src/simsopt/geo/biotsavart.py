@@ -221,18 +221,15 @@ class BiotSavart(sopp.BiotSavart, MagneticField, CPPOptimizable):
         return (res_B, res_dB)
 
     def B_vjp_graph(self, v):
-        vgrad = np.zeros((v.shape[0], 3, 3))
         gammas = [coil.curve.gamma() for coil in self.__coils]
         gammadashs = [coil.curve.gammadash() for coil in self.__coils]
         currents = [coil.current.get_value() for coil in self.__coils]
         res_gamma = [np.zeros_like(gamma) for gamma in gammas]
         res_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
-        res_grad_gamma = [np.zeros_like(gamma) for gamma in gammas]
-        res_grad_gammadash = [np.zeros_like(gammadash) for gammadash in gammadashs]
 
         points = self.get_points_cart_ref()
-        sopp.biot_savart_vjp_new(points, gammas, gammadashs, currents, v,
-                                 res_gamma, res_gammadash, vgrad, res_grad_gamma, res_grad_gammadash)
+        sopp.biot_savart_vjp_graph(points, gammas, gammadashs, currents, v,
+                                   res_gamma, res_gammadash, [], [], [])
         dB_by_dcoilcurrents = self.dB_by_dcoilcurrents()
         res_current = [np.sum(v * dB_by_dcoilcurrents[i]) for i in range(len(dB_by_dcoilcurrents))]
         return sum([self.__coils[i].vjp_graph(res_gamma[i], res_gammadash[i], np.asarray([res_current[i]])) for i in range(len(self.__coils))], start=Derivative({}))
