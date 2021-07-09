@@ -4,6 +4,7 @@ import unittest
 from simsopt.geo.curvexyzfourier import CurveXYZFourier, JaxCurveXYZFourier
 from simsopt.geo.curverzfourier import CurveRZFourier
 from simsopt.geo.curvehelical import CurveHelical
+from simsopt.geo.curveperturbed import CurvePerturbed, GaussianSampler, sympy_found
 from simsopt.geo.curve import RotatedCurve, curves_to_vtk
 from simsopt.geo import parameters
 
@@ -44,7 +45,7 @@ def taylor_test(f, df, x, epsilons=None, direction=None):
     # print("################################################################################")
 
 
-def get_curve(curvetype, rotated, x=np.asarray([0.5])):
+def get_curve(curvetype, rotated, perturbed=False, x=np.asarray([0.5])):
     np.random.seed(2)
     rand_scale = 0.01
     order = 4
@@ -78,6 +79,11 @@ def get_curve(curvetype, rotated, x=np.asarray([0.5])):
     curve.set_dofs(dofs + rand_scale * np.random.rand(len(dofs)).reshape(dofs.shape))
     if rotated:
         curve = RotatedCurve(curve, 0.5, flip=False)
+    if perturbed:
+        sigma = 0.01
+        length_scale = 0.3
+        sampler = GaussianSampler(x, sigma, length_scale, n_derivs=3)
+        curve = CurvePerturbed(curve, sampler)
     return curve
 
 
@@ -100,7 +106,7 @@ class Testing(unittest.TestCase):
     def subtest_curve_first_derivative(self, curvetype, rotated):
         epss = [0.5**i for i in range(10, 15)]
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
-        curve = get_curve(curvetype, rotated, x)
+        curve = get_curve(curvetype, rotated, x=x)
         f0 = curve.gamma()[0]
         deriv = curve.gammadash()[0]
         err_old = 1e6
@@ -120,7 +126,7 @@ class Testing(unittest.TestCase):
     def subtest_curve_second_derivative(self, curvetype, rotated):
         epss = [0.5**i for i in range(10, 15)]
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
-        curve = get_curve(curvetype, rotated, x)
+        curve = get_curve(curvetype, rotated, x=x)
         f0 = curve.gammadash()[0]
         deriv = curve.gammadashdash()[0]
         err_old = 1e6
@@ -140,7 +146,7 @@ class Testing(unittest.TestCase):
     def subtest_curve_third_derivative(self, curvetype, rotated):
         epss = [0.5**i for i in range(10, 15)] 
         x = np.asarray([0.6] + [0.6 + eps for eps in epss])
-        curve = get_curve(curvetype, rotated, x)
+        curve = get_curve(curvetype, rotated, x=x)
         f0 = curve.gammadashdash()[0]
         deriv = curve.gammadashdashdash()[0]
         err_old = 1e6
@@ -234,7 +240,7 @@ class Testing(unittest.TestCase):
     def subtest_curve_kappa_first_derivative(self, curvetype, rotated):
         epss = [0.5**i for i in range(12, 17)] 
         x = np.asarray([0.1234] + [0.1234 + eps for eps in epss])
-        ma = get_curve(curvetype, rotated, x)
+        ma = get_curve(curvetype, rotated, x=x)
         f0 = ma.kappa()[0]
         deriv = ma.kappadash()[0]
         err_old = 1e6
@@ -364,8 +370,8 @@ class Testing(unittest.TestCase):
                 with self.subTest(curvetype=curvetype, rotated=rotated):
                     self.subtest_curve_frenet_frame_derivative(curvetype, rotated)
 
-    def subtest_curve_dkappa_by_dphi_derivative(self, curvetype, rotated):
-        ma = get_curve(curvetype, rotated)
+    def subtest_curve_dkappa_by_dphi_derivative(self, curvetype, rotated, perturbed):
+        ma = get_curve(curvetype, rotated, perturbed=perturbed)
         coeffs = ma.get_dofs()
 
         def f(dofs):
@@ -380,8 +386,11 @@ class Testing(unittest.TestCase):
     def test_curve_dkappa_by_dphi_derivative(self):
         for curvetype in self.curvetypes:
             for rotated in [True, False]:
-                with self.subTest(curvetype=curvetype, rotated=rotated):
-                    self.subtest_curve_dkappa_by_dphi_derivative(curvetype, rotated)
+                for perturbed in [True, False]:
+                    if not sympy_found or (perturbed and curvetype != "CurveXYZFourier"):
+                        continue
+                    with self.subTest(curvetype=curvetype, rotated=rotated, perturbed=perturbed):
+                        self.subtest_curve_dkappa_by_dphi_derivative(curvetype, rotated, perturbed)
 
     @unittest.skipIf(not pyevtk_found, "pyevtk not found")
     def test_curve_to_vtk(self):
