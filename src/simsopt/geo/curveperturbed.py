@@ -1,11 +1,8 @@
 import numpy as np
 import simsoptpp as sopp
 from .curve import Curve
-try:
-    from sympy import Symbol, lambdify, exp
-    sympy_found = True
-except ImportError:
-    sympy_found = False
+from .._core.graph_optimizable import CPPOptimizable
+from sympy import Symbol, lambdify, exp
 
 
 class GaussianSampler():
@@ -52,7 +49,7 @@ class GaussianSampler():
         return [curve_and_derivs[(i*n):((i+1)*n), :] for i in range(n_derivs+1)]
 
 
-class CurvePerturbed(sopp.Curve, Curve):
+class CurvePerturbed(sopp.Curve, Curve, CPPOptimizable):
 
     def __init__(self, curve, sampler, randomgen=None):
         self.curve = curve
@@ -62,19 +59,14 @@ class CurvePerturbed(sopp.Curve, Curve):
         self.randomgen = randomgen
         self.sample = sampler.sample(self.randomgen)
         curve.dependencies.append(self)
+        CPPOptimizable.__init__(self, x0=np.asarray([]), opts_in=[curve])
 
     def resample(self):
         self.sample = self.sampler.sample(self.randomgen)
         self.invalidate_cache()
 
-    def num_dofs(self):
-        return self.curve.num_dofs()
-
     def get_dofs(self):
-        return self.curve.get_dofs()
-
-    def set_dofs_impl(self, x):
-        return self.curve.set_dofs(x)
+        return np.asarray([])
 
     def gamma_impl(self, gamma, quadpoints):
         assert quadpoints.shape[0] == self.curve.quadpoints.shape[0]
@@ -107,3 +99,9 @@ class CurvePerturbed(sopp.Curve, Curve):
 
     def dgammadash_by_dcoeff_vjp(self, v):
         return self.curve.dgammadash_by_dcoeff_vjp(v)
+
+    def dgamma_by_dcoeff_vjp_graph(self, v):
+        return self.curve.dgamma_by_dcoeff_vjp_graph(v)
+
+    def dgammadash_by_dcoeff_vjp_graph(self, v):
+        return self.curve.dgammadash_by_dcoeff_vjp_graph(v)

@@ -587,6 +587,11 @@ class RotatedCurve(sopp.Curve, Curve, CPPOptimizable):
         curve.dependencies.append(self)
         CPPOptimizable.__init__(self, x0=np.asarray([]), opts_in=[curve])
 
+    def invalidate_cache(self):
+        sopp.Curve.invalidate_cache(self)
+        for d in self.dependencies:
+            d.invalidate_cache()
+
     def get_dofs(self):
         """
         This function returns the curve dofs.
