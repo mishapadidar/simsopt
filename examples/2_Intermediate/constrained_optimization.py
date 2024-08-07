@@ -8,6 +8,7 @@ from simsopt.mhd import Vmec, QuasisymmetryRatioResidual
 from simsopt.objectives import ConstrainedProblem
 from simsopt.solve import constrained_mpi_solve
 from simsopt.util import MpiPartition, proc0_print
+from scipy.optimize import minimize as scipy_minimize
 
 """
 Optimize a VMEC equilibrium for quasi-helical symmetry (M=1, N=-1)
@@ -81,7 +82,9 @@ for step in range(3):
     # solver options
     options = {'disp': True, 'ftol': 1e-7, 'maxiter': 1}
     # solve the problem
-    constrained_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-7, options=options)
+    constrained_mpi_solve(prob, mpi, grad=True, rel_step=1e-5, abs_step=1e-7, options=options,
+                          opt_method='SLSQP',
+                          opt_handle=scipy_minimize)
     xopt = prob.x
 
     # Preserve the output file from the last iteration, so it is not

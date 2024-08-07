@@ -11,10 +11,11 @@ the operation of these main functions.
 import logging
 from datetime import datetime
 from time import time
+from typing import Callable
 import traceback
 
 import numpy as np
-from scipy.optimize import least_squares, minimize
+from scipy.optimize import least_squares, minimize as scipy_minimize
 from scipy.optimize import NonlinearConstraint, LinearConstraint
 
 try:
@@ -294,11 +295,21 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
                           rel_step: float = 0.0,
                           diff_method: str = "forward",
                           opt_method: str = "SLSQP",
+                          opt_handle: Callable = scipy_minimize,
                           options: dict = None):
     r"""
     Solve a constrained minimization problem using
     MPI. All MPI processes (including group leaders and workers)
     should call this function.
+
+    The function calls an minimization solver, opt_handle. Only the
+    proc0_world process will run the optimization. If other MPI cores are available
+    they will be used for concurrent evaluations of finite differences when
+    grad=True, and simultaneous evaluation of points when grad=False.
+
+    The default method calls the SLSQP solver through scipy's minimize routine
+    (opt_handle = scipy_minimize). Custom optimization methods, or other
+    solvers from other packages can be specified through opt_handle.
 
     Args:
         prob: :obj:`~simsopt.objectives.ConstrainedProblem` object defining the
@@ -321,6 +332,23 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
             derivative-free optimization. See
             `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_
             for a description of the methods.
+        opt_handle: A function handle to an optimization method. This is useful for using custom optimization methods or methods
+            outside of scipy. Defaults to calling scipy's minimize routine.
+            If grad=True, then opt_handle should have a function signature,
+            result = opt_handle(objective, x0, jac=obj_jac,
+                        bounds=bounds, constraints=constraints,
+                        method=opt_method, options=options)
+            Otherwise the function signature should be,
+            result = opt_handle(objective, x0, jac=obj_jac,
+                        bounds=bounds, constraints=constraints,
+                        method=opt_method, options=options).
+            objective: callable, function handle to the objective
+            x0: array, incumbent solution
+            jac: callable, handle to the objectives jacobian
+            bounds: list of tuples of lower and upper bounds, i.e. [(0.0, 1.0), ..., (-1.0, 4.0)]
+            constraints: list containing any scipy.NonlinearConstraint and scipy.LinearConstraint instances.
+            opt_method: str, Same argument as this function.
+            options: dict, dictionary of options. Same argument as this function.
         options: dict, ``options`` keyword which is passed to
             `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_.
     """
@@ -469,7 +497,7 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
                 x0 = np.copy(prob.x)
                 logger.info("Using finite difference method implemented in "
                             "SIMSOPT for evaluating gradient")
-                result = minimize(_f_proc0, x0, jac=obj_jac,
+                result = opt_handle(_f_proc0, x0, jac=obj_jac,
                                   bounds=bounds, constraints=constraints,
                                   method=opt_method, options=options)
 
@@ -487,7 +515,7 @@ def constrained_mpi_solve(prob: ConstrainedProblem,
                 constraints.append(nlc)
             x0 = np.copy(prob.x)
             logger.info("Using derivative-free method")
-            result = minimize(_f_proc0, x0,
+            result = opt_handle(_f_proc0, x0,
                               bounds=bounds, constraints=constraints,
                               method=opt_method, options=options)
 
