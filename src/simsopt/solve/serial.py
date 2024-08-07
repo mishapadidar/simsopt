@@ -311,9 +311,11 @@ def constrained_serial_solve(prob: ConstrainedProblem,
                         bounds=bounds, constraints=constraints,
                         method=opt_method, options=options)
             Otherwise the function signature should be,
-            result = opt_handle(objective, x0, jac=obj_jac,
+            result = opt_handle(objective, x0,
                         bounds=bounds, constraints=constraints,
                         method=opt_method, options=options).
+            The result MUST have the attribute result.x which returns the optimal point.
+
             objective: callable, function handle to the objective
             x0: array, incumbent solution
             jac: callable, handle to the objectives jacobian
