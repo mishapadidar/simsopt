@@ -2,6 +2,7 @@
 # Copyright (c) HiddenSymmetries Development Team.
 # Distributed under the terms of the MIT License
 
+
 """
 Provides the ConstrainedProblem class implemented using the graph based
 optimization framework.
@@ -97,8 +98,39 @@ class ConstrainedProblem(Optimizable):
         else:
             self.has_lc = False
 
+        self.need_to_run_obj = True
+        self.need_to_run_con = True
+
         # make our class Optimizable
         super().__init__(funcs_in=funcs_in)
+
+    def recompute_bell(self, parent=None):
+        """
+        This function will get called any time any of the DOFs of the
+        parent class change.
+        """
+        self.need_to_run_obj = True
+        self.need_to_run_con = True
+    
+    def cache_objective(self, obj):
+        """
+        Cache the objective.
+
+        obj: float,
+          evaluation of the objective function
+        """
+        self.objective_cache = obj
+        self.need_to_run_obj = False
+
+    def cache_constraints(self, nlc):
+        """
+        Cache the nonlinear constraints.
+
+        nlc: float,
+          evaluation of the nonlinear constraints
+        """
+        self.constraint_cache = nlc
+        self.need_to_run_con = False
 
     def nonlinear_constraints(self, x=None, *args, **kwargs):
         """
@@ -111,65 +143,61 @@ class ConstrainedProblem(Optimizable):
             kwargs: Keyword arguments
         """
         if x is not None:
-            # only change x if different than last evaluated
-            if np.any(self.x != x):
-                self.x = x
-
-        if self.new_x:
-            # empty the cache for objective and constraint
-            self.objective_cache = None
-            self.constraint_cache = None
+            self.x = x
+        # TODO: set up caching of constraint values
 
         # get the constraint funcs
         fn_nlc = self.funcs_in[1:]
         if not self.has_nlc:
             # No nonlinear constraints to evaluate
-            raise RuntimeError
+            raise RuntimeError("No nonlinear constraints to evaluate")
 
-        if (self.constraint_cache is None):
-            outputs = []
-            for i, fn in enumerate(fn_nlc):
+        outputs = []
+        for i, fn in enumerate(fn_nlc):
 
-                try:
-                    out = fn(*args, **kwargs)
-                except ObjectiveFailure:
-                    logger.warning(f"Function evaluation failed for {fn}")
-                    if self.fail is None or self.first_eval_con:
-                        raise
+            try:
+                out = fn(*args, **kwargs)
+            except ObjectiveFailure:
+                logger.warning(f"Function evaluation failed for {fn}")
+                if self.fail is None or self.first_eval_con:
+                    raise
 
-                    break
+                break
 
-                # evaluate lhs as lhs - c(x) <= 0
-                if np.any(np.isfinite(self.lhs_nlc[i])):
-                    diff = np.array(self.lhs_nlc[i]) - out
-                    output = np.array([diff]) if not np.ndim(diff) else np.asarray(diff)
-                    outputs += [output]
-                    if self.first_eval_con:
-                        self.nvals += len(output)
-                        logger.debug(f"{i}: first eval {self.nvals}")
-
-                # evaluate rhs as c(x) - rhs <= 0
-                if np.any(np.isfinite(self.rhs_nlc[i])):
-                    diff = out - np.array(self.rhs_nlc[i]) 
-                    output = np.array([diff]) if not np.ndim(diff) else np.asarray(diff)
-                    outputs += [output]
-                    if self.first_eval_con:
-                        self.nvals += len(output)
-                        logger.debug(f"{i}: first eval {self.nvals}")
-
-            else:
+            # evaluate lhs as lhs - c(x) <= 0
+            if np.any(np.isfinite(self.lhs_nlc[i])):
+                diff = np.array(self.lhs_nlc[i]) - out
+                output = np.array([diff]) if not np.ndim(diff) else np.asarray(diff)
+                outputs += [output]
                 if self.first_eval_con:
-                    self.first_eval_con = False
-                self.constraint_cache = np.concatenate(outputs)
-                self.new_x = False
-                return self.constraint_cache
+                    self.nvals += len(output)
+                    logger.debug(f"{i}: first eval {self.nvals}")
+
+            # evaluate rhs as c(x) - rhs <= 0
+            if np.any(np.isfinite(self.rhs_nlc[i])):
+                diff = out - np.array(self.rhs_nlc[i]) 
+                output = np.array([diff]) if not np.ndim(diff) else np.asarray(diff)
+                outputs += [output]
+                if self.first_eval_con:
+                    self.nvals += len(output)
+                    logger.debug(f"{i}: first eval {self.nvals}")
+
+        else:
+            if self.first_eval_con:
+                self.first_eval_con = False
+
+            out = np.concatenate(outputs)
+            self.cache_constraints(out)
+
+            return out
 
             # Reached here after encountering break in for loop
-            self.constraint_cache = np.full(self.nvals, self.fail)
-            self.new_x = False
-            return self.constraint_cache
-        else:
-            return self.constraint_cache
+            out = np.full(self.nvals, self.fail)
+
+            self.cache_constraint(out)
+
+            return out
+
 
     def objective(self, x=None, *args, **kwargs):
         """
@@ -181,16 +209,10 @@ class ConstrainedProblem(Optimizable):
             kwargs: Keyword arguments
         """
         if x is not None:
-            # only change x if different than last evaluated
-            if np.any(self.x != x):
-                self.x = x
+            self.x = x
 
-        if self.new_x:
-            # empty the cache for objective and constraint
-            self.objective_cache = None
-            self.constraint_cache = None
-
-        if (self.objective_cache is None):
+        # TODO: set up caching of objective values
+        if self.need_to_run_obj:
             fn = self.funcs_in[0]
             try:
                 out = fn(*args, **kwargs)
@@ -200,15 +222,14 @@ class ConstrainedProblem(Optimizable):
                     raise
                 out = self.fail
 
-            self.objective_cache = out
-            self.new_x = False
-
             if self.first_eval_obj:
                 self.first_eval_obj = False
 
-            return self.objective_cache
+            self.cache_objective(out)
         else:
             return self.objective_cache
+
+        return out
 
     def all_funcs(self, x=None, *args, **kwargs):
         """
