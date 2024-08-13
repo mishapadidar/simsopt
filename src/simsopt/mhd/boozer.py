@@ -64,6 +64,7 @@ class Boozer(Optimizable):
         self.mpol = mpol
         self.ntor = ntor
         self.bx = booz_xform.Booz_xform()
+        #print(self.bx.asym)
         self.bx.verbose = verbose
         self.s = set()
         self.need_to_run_code = True
@@ -123,10 +124,6 @@ class Boozer(Optimizable):
         if isinstance(self.equil, Vmec):
             #partake in parallel VMEC job
             self.equil.run()
-            #skedaddle if you are not proc0 of your group
-            if (self.mpi is not None) and (not self.mpi.proc0_groups):
-                logger.info("This proc is skipping the rest of boozer.run since it is not a group leader.")
-                return
 
             wout = self.equil.wout  # Shorthand
 
