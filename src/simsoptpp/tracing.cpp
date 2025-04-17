@@ -22,62 +22,10 @@ typedef xt::pyarray<double> Array;
 using boost::math::tools::toms748_solve;
 using namespace boost::numeric::odeint;
 
-template<template<class, std::size_t, xt::layout_type> class T>
-class GuidingCenterVacuumRHS {
-    /*
-     * The state consists of :math:`[x, y, z, v_par]` with
-     *
-     *   [\dot x, \dot y, \dot z] &= v_{||}\frac{B}{|B|} + \frac{m}{q|B|^3}  (0.5v_\perp^2 + v_{||}^2)  B\times \nabla(|B|)
-     *   \dot v_{||}              &= -\mu  (B \cdot \nabla(|B|))
-     *
-     * where v_perp = 2*mu*|B|
-     */
-    private:
-        std::array<double, 3> BcrossGradAbsB = {0., 0., 0.};
-        typename MagneticField<T>::Tensor2 rphiz = xt::zeros<double>({1, 3});
-        shared_ptr<MagneticField<T>> field;
-        double m, q, mu;
-    public:
-        static constexpr int Size = 4;
-        using State = std::array<double, Size>;
+#include "xtensor-python/pyarray.hpp"     // Numpy bindings
+#include "xtensor-python/pytensor.hpp"     // Numpy bindings
+typedef xt::pyarray<double> Array;
 
-
-        GuidingCenterVacuumRHS(shared_ptr<MagneticField<T>> field, double m, double q, double mu)
-            : field(field), m(m), q(q), mu(mu) {
-
-            }
-
-        void operator()(const State &ys, array<double, 4> &dydt,
-                const double t) {
-            double x = ys[0];
-            double y = ys[1];
-            double z = ys[2];
-            double v_par = ys[3];
-
-            rphiz(0, 0) = std::sqrt(x*x+y*y);
-            rphiz(0, 1) = std::atan2(y, x);
-            if(rphiz(0, 1) < 0)
-                rphiz(0, 1) += 2*M_PI;
-            rphiz(0, 2) = z;
-
-            field->set_points_cyl(rphiz);
-            auto& GradAbsB = field->GradAbsB_ref();
-            auto& B = field->B_ref();
-            double AbsB = field->AbsB_ref()(0);
-            BcrossGradAbsB[0] = (B(0, 1) * GradAbsB(0, 2)) - (B(0, 2) * GradAbsB(0, 1));
-            BcrossGradAbsB[1] = (B(0, 2) * GradAbsB(0, 0)) - (B(0, 0) * GradAbsB(0, 2));
-            BcrossGradAbsB[2] = (B(0, 0) * GradAbsB(0, 1)) - (B(0, 1) * GradAbsB(0, 0));
-            double v_perp2 = 2*mu*AbsB;
-            double fak1 = (v_par/AbsB);
-            double fak2 = (m/(q*pow(AbsB, 3)))*(0.5*v_perp2 + v_par*v_par);
-            dydt[0] = fak1*B(0, 0) + fak2*BcrossGradAbsB[0];
-            dydt[1] = fak1*B(0, 1) + fak2*BcrossGradAbsB[1];
-            dydt[2] = fak1*B(0, 2) + fak2*BcrossGradAbsB[2];
-            dydt[3] = -mu*(B(0, 0)*GradAbsB(0, 0) + B(0, 1)*GradAbsB(0, 1) + B(0, 2)*GradAbsB(0, 2))/AbsB;
-        }
-};
-
-template<template<class, std::size_t, xt::layout_type> class T>
 class GuidingCenterVacuumBoozerRHS {
     /*
      * The state consists of :math:`[s, t, z, v_par]` with
@@ -470,7 +418,93 @@ particle_guiding_center_tracing(
         throw std::logic_error("Guiding center right hand side currently only implemented for vacuum fields.");
 }
 
-template<template<class, std::size_t, xt::layout_type> class T>
+// compute derivative for a single point
+void particle_guiding_center_boozer_derivs(
+        shared_ptr<BoozerMagneticField> field, array<double, 3> stz_init, array<double, 4>&  out,
+        double m, double q, double vtotal, double vtang)
+{
+    typename BoozerMagneticField::Array2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
+    field->set_points(stz);
+    double modB = field->modB()(0);
+    double vperp2 = vtotal*vtotal - vtang*vtang;
+    double mu = vperp2/(2*modB);
+
+    double s = stz_init[0];
+    double t = stz_init[1];
+
+    array<double, 4> y = {s*cos(t), s*sin(t), stz_init[2], vtang};
+    auto rhs_class = GuidingCenterVacuumBoozerRHS(field, m, q, mu,2);
+
+    rhs_class(y, out, 0.0);
+
+}
+
+py::array_t<double> simsopt_derivs(shared_ptr<BoozerMagneticField> field, py::array_t<double> loc, double m, double q, double vtotal, double vtang){
+
+
+    py::buffer_info loc_buf = loc.request();
+    double* loc_arr = static_cast<double*>(loc_buf.ptr);
+
+    double out[4];
+    array<double, 3> stz = {loc_arr[0], loc_arr[1], loc_arr[2]};
+
+    array<double, 4> derivs;
+    particle_guiding_center_boozer_derivs(field, stz, derivs, m, q, vtotal, vtang);
+
+    for(int i=0; i<4; ++i){
+        out[i] = derivs[i];
+    }
+
+    double s = loc_arr[0];
+    double theta = loc_arr[1];
+    
+    // map to "pseudo-Cartesian coordinates"
+    // double dy1dt = out[0]*cos(theta) - s * sin(theta) * out[1];
+    // double dy2dt = out[0]*sin(theta) + s * cos(theta) * out[1];
+
+    // out[0] = dy1dt;
+    // out[1] = dy2dt;
+
+
+    auto result = py::array_t<double>(4, out);
+
+
+
+    return result;
+
+}
+
+/**
+ * @brief Traces the guiding center of a particle in a Boozer magnetic field.
+ *
+ * @param field Shared pointer to the BoozerMagneticField object.
+ * @param stz_init Initial position of the particle in Boozer coordinates (s, theta, zeta).
+ * @param m Mass of the particle.
+ * @param q Charge of the particle.
+ * @param vtotal Total velocity of the particle.
+ * @param vtang Tangential velocity of the particle.
+ * @param tmax Maximum time for the simulation.
+ * @param dt Initial time step for the simulation.
+ * @param abstol Absolute tolerance for the adaptive time stepper.
+ * @param reltol Relative tolerance for the adaptive time stepper.
+ * @param roottol Tolerance for root finding.
+ * @param vacuum Boolean flag indicating if the field is a vacuum field.
+ * @param noK Boolean flag indicating if the K term should be ignored.
+ * @param solveSympl Boolean flag indicating if the symplectic solver should be used.
+ * @param zetas Vector of zeta values for stopping criteria.
+ * @param omegas Vector of omega values for stopping criteria.
+ * @param stopping_criteria Vector of shared pointers to stopping criteria objects.
+ * @param dt_save Time step for saving the results.
+ * @param vpars Vector of additional parameters for the velocity.
+ * @param zetas_stop Boolean flag indicating if zeta stopping criteria should be used.
+ * @param vpars_stop Boolean flag indicating if velocity parameter stopping criteria should be used.
+ * @param forget_exact_path Boolean flag indicating if the exact path should be forgotten.
+ * @param axis Defines handling of coordinate singularity. If 0, tracing is performed in Boozer coordinates (s,theta,zeta). If 1, tracing is performed in coordinates (sqrt(s)*cos(theta), sqrt(s)*sin(theta), zeta). If 2, tracing is performed in coordinates (s*cos(theta),s*sin(theta),zeta). Option 2 is recommended. 
+ * @param predictor_step Boolean flag indicating if predictor step should be used.
+ * @return A tuple containing two vectors: the first vector contains arrays of size 5, and the second vector contains arrays of size 6.
+ * 
+ * @throws std::invalid_argument if dt is not positive.
+ */
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,

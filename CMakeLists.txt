@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.15)
 project(simsoptpp LANGUAGES CXX)
 #set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
+enable_language(CUDA)
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_80 -lineinfo")
+find_package(CUDA REQUIRED)
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -131,8 +135,10 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp 
     src/simsoptpp/magneticfield_wireframe.cpp
     src/simsoptpp/boozerradialinterpolant.cpp
-    src/simsoptpp/wireframe_optimization.cpp
-    )
+    src/simsoptpp/tracing_cuda_kernel.cu
+    src/simsoptpp/tracing_cuda_wrapper.cpp
+    ${GSL_TARGETS}
+)
 
 set_target_properties(${PROJECT_NAME}
     PROPERTIES

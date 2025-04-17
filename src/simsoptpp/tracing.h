@@ -9,7 +9,31 @@ using std::shared_ptr;
 using std::vector;
 using std::tuple;
 
-double get_phi(double x, double y, double phi_near);
+namespace py = pybind11;
+
+tuple<vector<std::array<double, 6>>, vector<std::array<double, 7>>>
+particle_guiding_center_boozer_perturbed_tracing(
+        shared_ptr<ShearAlfvenWave> perturbed_field,
+        std::array<double, 3> stz_init,
+        double m,
+        double q,
+        double vtotal,
+        double vtang,
+        double mu,
+        double tmax,
+        double abstol,
+        double reltol,
+        bool vacuum,
+        bool noK,
+        vector<double> zetas,
+        vector<double> omegas,
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria,
+        double dt_save=1e-6,
+        bool zetas_stop=false,
+        bool vpars_stop=false,
+        bool forget_exact_path=false,
+        int axis=0,
+        vector<double> vpars={});
 
 class StoppingCriterion {
     public:
@@ -134,25 +158,10 @@ class LevelsetStoppingCriterion : public StoppingCriterion{
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
-        shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
-        double m, double q, double vtotal, double vtang, double tmax, double tol,
-        bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+        shared_ptr<BoozerMagneticField> field, std::array<double, 3> stz_init,
+        double m, double q, double vtotal, double vtang, double tmax, double dt, double abstol, double reltol, double roottol,
+        bool vacuum, bool noK, bool solveSympl, vector<double> zetas={}, vector<double> omegas={},
+        vector<shared_ptr<StoppingCriterion>> stopping_criteria={}, double dt_save=1e-6, vector<double> vpars={}, bool zetas_stop=false, bool vpars_stop=false, bool forget_exact_path=false, int axis=0, bool predictor_step=true);
 
-template<template<class, std::size_t, xt::layout_type> class T>
-tuple<vector<array<double, 5>>, vector<array<double, 6>>>
-particle_guiding_center_tracing(
-        shared_ptr<MagneticField<T>> field, array<double, 3> xyz_init,
-        double m, double q, double vtotal, double vtang, double tmax, double tol, bool vacuum,
-        vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
-template<template<class, std::size_t, xt::layout_type> class T>
-tuple<vector<array<double, 7>>, vector<array<double, 8>>>
-particle_fullorbit_tracing(
-        shared_ptr<MagneticField<T>> field, array<double, 3> xyz_init, array<double, 3> v_init,
-        double m, double q, double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
-
-template<template<class, std::size_t, xt::layout_type> class T>
-tuple<vector<array<double, 4>>, vector<array<double, 5>>>
-fieldline_tracing(
-        shared_ptr<MagneticField<T>> field, array<double, 3> xyz_init,
-        double tmax, double tol, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
+py::array_t<double> simsopt_derivs(shared_ptr<BoozerMagneticField> field, py::array_t<double> loc, double m, double q, double vtotal, double vtang);
