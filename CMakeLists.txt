@@ -4,6 +4,7 @@ project(simsoptpp LANGUAGES CXX)
 
 enable_language(CUDA)
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_80 -lineinfo")
+
 find_package(CUDA REQUIRED)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -12,6 +13,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(Python_FIND_STRATEGY LOCATION)
 find_package(Python REQUIRED COMPONENTS Interpreter Development.Module NumPy)
 find_package(pybind11 CONFIG REQUIRED)
+find_package(CUDA REQUIRED)
 
 message(status "Python executable is ${Python_EXECUTABLE}")
 message(status "Python Development Module found value is ${Python_Development.Module_FOUND}")
@@ -118,6 +120,7 @@ endif()
 add_subdirectory(thirdparty/fmt EXCLUDE_FROM_ALL)
 set(XTENSOR_USE_OPENMP 0)
 set(XTENSOR_USE_TBB 0)
+
 
 
 pybind11_add_module(${PROJECT_NAME}

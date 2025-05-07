@@ -22,9 +22,62 @@ typedef xt::pyarray<double> Array;
 using boost::math::tools::toms748_solve;
 using namespace boost::numeric::odeint;
 
-#include "xtensor-python/pyarray.hpp"     // Numpy bindings
-#include "xtensor-python/pytensor.hpp"     // Numpy bindings
-typedef xt::pyarray<double> Array;
+#include <fmt/core.h>
+
+template<template<class, std::size_t, xt::layout_type> class T>
+class GuidingCenterVacuumRHS {
+    /*
+     * The state consists of :math:`[x, y, z, v_par]` with
+     *
+     *   [\dot x, \dot y, \dot z] &= v_{||}\frac{B}{|B|} + \frac{m}{q|B|^3}  (0.5v_\perp^2 + v_{||}^2)  B\times \nabla(|B|)
+     *   \dot v_{||}              &= -\mu  (B \cdot \nabla(|B|))
+     *
+     * where v_perp = 2*mu*|B|
+     */
+    private:
+        std::array<double, 3> BcrossGradAbsB = {0., 0., 0.};
+        typename MagneticField<T>::Tensor2 rphiz = xt::zeros<double>({1, 3});
+        shared_ptr<MagneticField<T>> field;
+        double m, q, mu;
+    public:
+        static constexpr int Size = 4;
+        using State = std::array<double, Size>;
+
+
+        GuidingCenterVacuumRHS(shared_ptr<MagneticField<T>> field, double m, double q, double mu)
+            : field(field), m(m), q(q), mu(mu) {
+
+            }
+
+        void operator()(const State &ys, array<double, 4> &dydt,
+                const double t) {
+            double x = ys[0];
+            double y = ys[1];
+            double z = ys[2];
+            double v_par = ys[3];
+
+            rphiz(0, 0) = std::sqrt(x*x+y*y);
+            rphiz(0, 1) = std::atan2(y, x);
+            if(rphiz(0, 1) < 0)
+                rphiz(0, 1) += 2*M_PI;
+            rphiz(0, 2) = z;
+
+            field->set_points_cyl(rphiz);
+            auto& GradAbsB = field->GradAbsB_ref();
+            auto& B = field->B_ref();
+            double AbsB = field->AbsB_ref()(0);
+            BcrossGradAbsB[0] = (B(0, 1) * GradAbsB(0, 2)) - (B(0, 2) * GradAbsB(0, 1));
+            BcrossGradAbsB[1] = (B(0, 2) * GradAbsB(0, 0)) - (B(0, 0) * GradAbsB(0, 2));
+            BcrossGradAbsB[2] = (B(0, 0) * GradAbsB(0, 1)) - (B(0, 1) * GradAbsB(0, 0));
+            double v_perp2 = 2*mu*AbsB;
+            double fak1 = (v_par/AbsB);
+            double fak2 = (m/(q*pow(AbsB, 3)))*(0.5*v_perp2 + v_par*v_par);
+            dydt[0] = fak1*B(0, 0) + fak2*BcrossGradAbsB[0];
+            dydt[1] = fak1*B(0, 1) + fak2*BcrossGradAbsB[1];
+            dydt[2] = fak1*B(0, 2) + fak2*BcrossGradAbsB[2];
+            dydt[3] = -mu*(B(0, 0)*GradAbsB(0, 0) + B(0, 1)*GradAbsB(0, 1) + B(0, 2)*GradAbsB(0, 2))/AbsB;
+        }
+};
 
 class GuidingCenterVacuumBoozerRHS {
     /*
@@ -54,11 +107,17 @@ class GuidingCenterVacuumBoozerRHS {
         void operator()(const State &ys, array<double, 4> &dydt,
                 const double t) {
             double v_par = ys[3];
+            double s, theta;
 
-            stz(0, 0) = ys[0];
-            stz(0, 1) = ys[1];
+            s = sqrt(pow(ys[0],2)+pow(ys[1],2));
+            theta = atan2(ys[1],ys[0]); 
+
+            stz(0, 0) = s;
+            stz(0, 1) = theta;
             stz(0, 2) = ys[2];
 
+            // std::cout << "evaluating gc vac boozer rhs at " << t << "\t" << ys[0] << "\t" << ys[1] << "\t"<< ys[2] << "\t" << ys[3] << "\n";
+            // fmt::print("evaluating gc vac boozer rhs at {}, {}, {}, {}, {}\n", t, ys[0], ys[1], ys[2], ys[3]);
             field->set_points(stz);
             auto psi0 = field->psi0;
             double modB = field->modB_ref()(0);
@@ -70,10 +129,24 @@ class GuidingCenterVacuumBoozerRHS {
             double v_perp2 = 2*mu*modB;
             double fak1 = m*v_par*v_par/modB + m*mu;
 
-            dydt[0] = -dmodBdtheta*fak1/(q*psi0);
-            dydt[1] = dmodBds*fak1/(q*psi0) + iota*v_par*modB/G;
+            // fmt::print("simsopt modB ={}, modB derivs={} {} {}, G={}, iota={}\n", modB, dmodBds, dmodBdtheta, dmodBdzeta, G, iota);
+            // fmt::print("simsopt m={}, v_par={}, mu={}\n", m, v_par, mu); 
+
+            double sdot = -dmodBdtheta*fak1/(q*psi0);
+            double tdot = dmodBds*fak1/(q*psi0) + iota*v_par*modB/G;
+
+
+            dydt[0] = sdot*cos(theta) - s * sin(theta) * tdot;
+            dydt[1] = sdot*sin(theta) + s * cos(theta) * tdot;
             dydt[2] = v_par*modB/G;
             dydt[3] = -(iota*dmodBdtheta + dmodBdzeta)*mu*modB/G;
+
+            // fmt::print("simsopt derivs: {}, {}, {}, {}\n", dydt[0], dydt[1], dydt[2], dydt[3]);
+            // fmt::print("fak1={}, sdot={}, tdot={}\n", fak1, sdot, tdot);
+            // std::cout << "evaluating derivative" << std::endl;
+            // if(ys[0] >= 1){
+            //     std::cout << "s=" << ys[0] << " G = " << G << "dydt[1]= " << dydt[1] << std::endl;
+            // }
         }
 };
 
@@ -128,7 +201,10 @@ class GuidingCenterNoKBoozerRHS {
             double fak1 = m*v_par*v_par/modB + m*mu;
             double D = ((q + m*v_par*dIdpsi/modB)*G - (-q*iota + m*v_par*dGdpsi/modB)*I)/iota;
 
+
+
             dydt[0] = (I*dmodBdzeta - G*dmodBdtheta)*fak1/(D*iota*psi0);
+
             dydt[1] = (G*dmodBdpsi*fak1 - (-q*iota + m*v_par*dGdpsi/modB)*v_par*modB)/(D*iota);
             dydt[2] = ((q + m*v_par*dIdpsi/modB)*v_par*modB - dmodBdpsi*fak1*I)/(D*iota);
             dydt[3] = - (mu / v_par) * (dmodBdpsi * dydt[0] * psi0 + dmodBdtheta * dydt[1] + dmodBdzeta * dydt[2]);
@@ -335,6 +411,7 @@ solve(RHS rhs, typename RHS::State y, double tmax, double dt, double dtmax, doub
     State temp;
     do {
         res.push_back(join<1, RHS::Size>({t}, y));
+        // fmt::print("calling do_step\n");
         tuple<double, double> step = dense.do_step(rhs);
         iter++;
         t = dense.current_time();
@@ -506,22 +583,55 @@ py::array_t<double> simsopt_derivs(shared_ptr<BoozerMagneticField> field, py::ar
  * @throws std::invalid_argument if dt is not positive.
  */
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
+particle_guiding_center_tracing_gpu(
+        shared_ptr<MagneticField<T>> field, array<double, 3> xyz_init,
+        double m, double q, double vtotal, double vtang, double tmax, double tol, bool vacuum, vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
+{
+    typename MagneticField<T>::Tensor2 xyz({{xyz_init[0], xyz_init[1], xyz_init[2]}});
+    field->set_points(xyz);
+    double AbsB = field->AbsB_ref()(0);
+    double vperp2 = vtotal*vtotal - vtang*vtang;
+    double mu = vperp2/(2*AbsB);
+
+    array<double, 4> y = {xyz_init[0], xyz_init[1], xyz_init[2], vtang};
+    double r0 = std::sqrt(xyz_init[0]*xyz_init[0] + xyz_init[1]*xyz_init[1]);
+    double dtmax = r0*0.5*M_PI/vtotal; // can at most do quarter of a revolution per step
+    double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
+
+    if(vacuum){
+        auto rhs_class = GuidingCenterVacuumRHS<T>(field, m, q, mu);
+        return solve(rhs_class, y, tmax, dt, dtmax, tol, phis, stopping_criteria);
+    }
+    else
+        throw std::logic_error("Guiding center right hand side currently only implemented for vacuum fields.");
+}
+
+template<template<class, std::size_t, xt::layout_type> class T>
+tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_boozer_tracing(
         shared_ptr<BoozerMagneticField<T>> field, array<double, 3> stz_init,
         double m, double q, double vtotal, double vtang, double tmax, double tol,
         bool vacuum, bool noK, vector<double> zetas, vector<shared_ptr<StoppingCriterion>> stopping_criteria)
 {
+    // fmt::print("simsopt initial pt. s={}, t={}, z={}\n", stz_init[0], stz_init[1], stz_init[2]);
+
     typename BoozerMagneticField<T>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
     field->set_points(stz);
     double modB = field->modB()(0);
+
+
     double vperp2 = vtotal*vtotal - vtang*vtang;
     double mu = vperp2/(2*modB);
 
-    array<double, 4> y = {stz_init[0], stz_init[1], stz_init[2], vtang};
+    array<double, 4> y = {stz_init[0] * cos(stz_init[1]), stz_init[0] * sin(stz_init[1]), stz_init[2], vtang};
     double G0 = std::abs(field->G()(0));
     double r0 = G0/modB;
     double dtmax = r0*0.5*M_PI/vtotal; // can at most do quarter of a revolution per step
     double dt = 1e-3 * dtmax; // initial guess for first timestep, will be adjusted by adaptive timestepper
+
+    // std::cout << "G0=" << G0 <<"\t modB=" << modB << "\t dtmax=" << dtmax << "\tdt=" << dt << "\n";
+
+    // fmt::print("G0={}, modB={}, dtmax={}, dt={}\n", G0, modB, dtmax, dt);
 
     if (vacuum) {
       auto rhs_class = GuidingCenterVacuumBoozerRHS<T>(field, m, q, mu);
@@ -535,6 +645,65 @@ particle_guiding_center_boozer_tracing(
     }
 }
 
+
+// compute derivative for a single point
+void particle_guiding_center_boozer_derivs(
+        shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init, array<double, 4>&  out,
+        double m, double q, double vtotal, double vtang)
+{
+    typename BoozerMagneticField<xt::pytensor>::Tensor2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
+    field->set_points(stz);
+    double modB = field->modB()(0);
+    double vperp2 = vtotal*vtotal - vtang*vtang;
+    double mu = vperp2/(2*modB);
+
+    double s = stz_init[0];
+    double t = stz_init[1];
+
+    array<double, 4> y = {s*cos(t), s*sin(t), stz_init[2], vtang};
+    auto rhs_class = GuidingCenterVacuumBoozerRHS<xt::pytensor>(field, m, q, mu);
+
+    rhs_class(y, out, 0.0);
+
+}
+
+
+py::array_t<double> simsopt_derivs(shared_ptr<BoozerMagneticField<xt::pytensor>> field, py::array_t<double> loc, double m, double q, double vtotal, double vtang){
+
+
+    py::buffer_info loc_buf = loc.request();
+    double* loc_arr = static_cast<double*>(loc_buf.ptr);
+
+    double out[4];
+    array<double, 3> stz = {loc_arr[0], loc_arr[1], loc_arr[2]};
+
+    array<double, 4> derivs;
+    particle_guiding_center_boozer_derivs(field, stz, derivs, m, q, vtotal, vtang);
+
+    for(int i=0; i<4; ++i){
+        out[i] = derivs[i];
+    }
+
+    double s = loc_arr[0];
+    double theta = loc_arr[1];
+    
+    // map to "pseudo-Cartesian coordinates"
+    // double dy1dt = out[0]*cos(theta) - s * sin(theta) * out[1];
+    // double dy2dt = out[0]*sin(theta) + s * cos(theta) * out[1];
+
+    // out[0] = dy1dt;
+    // out[1] = dy2dt;
+
+
+    auto result = py::array_t<double>(4, out);
+
+
+
+    return result;
+
+}
+
+
 template
 tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_boozer_tracing<xt::pytensor>(
         shared_ptr<BoozerMagneticField<xt::pytensor>> field, array<double, 3> stz_init,
@@ -547,6 +716,11 @@ tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_cente
         double m, double q, double vtotal, double vtang, double tmax, double tol, bool vacuum,
         vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
+template
+tuple<vector<array<double, 5>>, vector<array<double, 6>>> particle_guiding_center_tracing_gpu<xt::pytensor>(
+        shared_ptr<MagneticField<xt::pytensor>> field, array<double, 3> xyz_init,
+        double m, double q, double vtotal, double vtang, double tmax, double tol, bool vacuum,
+        vector<double> phis, vector<shared_ptr<StoppingCriterion>> stopping_criteria);
 
 template<template<class, std::size_t, xt::layout_type> class T>
 tuple<vector<array<double, 7>>, vector<array<double, 8>>>

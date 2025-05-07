@@ -9,6 +9,7 @@ typedef xt::pytensor<double, 2, xt::layout_type::row_major> PyTensor;
 using std::shared_ptr;
 using std::vector;
 #include "tracing.h"
+#include <Eigen/Core>
 
 
 extern "C" vector<double> gpu_tracing(py::array_t<double> quad_pts, py::array_t<double> srange,
@@ -83,12 +84,87 @@ void init_tracing(py::module_ &m){
         py::arg("vpars")=vector<double>{}
     );
 
-        m.def("gpu_tracing", &gpu_tracing,
+
+    m.def("gpu_tracing", &gpu_tracing,
         py::arg("quad_pts"),
         py::arg("srange"),
         py::arg("trange"),
         py::arg("zrange"),
         py::arg("stz_init"),
+        py::arg("m"),
+        py::arg("q"),
+        py::arg("vtotal"),
+        py::arg("vtang"),
+        py::arg("tmax"),
+        py::arg("tol"),
+        py::arg("psi0"),
+        py::arg("nparticles")
+        );
+
+    m.def("test_interpolation", &test_interpolation,
+        py::arg("quad_pts"),
+        py::arg("srange"),
+        py::arg("trange"),
+        py::arg("zrange"),
+        py::arg("loc"),
+        py::arg("n")
+        );
+
+    m.def("test_gpu_interpolation", &test_gpu_interpolation,
+        py::arg("quad_pts"),
+        py::arg("srange"),
+        py::arg("trange"),
+        py::arg("zrange"),
+        py::arg("loc"),
+        py::arg("n"),
+        py::arg("n_points")
+        );
+
+
+    m.def("test_derivatives", &test_derivatives,
+        py::arg("quad_pts"),
+        py::arg("srange"),
+        py::arg("trange"),
+        py::arg("zrange"),
+        py::arg("loc"),
+        py::arg("vpar"),
+        py::arg("v_total"),
+        py::arg("m"),
+        py::arg("q"),
+        py::arg("psi0"),
+        py::arg("n_points")
+        );
+
+
+
+    m.def("simsopt_derivs", &simsopt_derivs,
+        py::arg("field"),
+        py::arg("loc"),
+        py::arg("m"),
+        py::arg("q"),
+        py::arg("vtotal"),
+        py::arg("vtang")
+        );
+
+    m.def("test_timestep", &test_timestep,
+        py::arg("quad_pts"),
+        py::arg("srange"),
+        py::arg("trange"),
+        py::arg("zrange"),
+        py::arg("stz_init"),
+        py::arg("m"),
+        py::arg("q"),
+        py::arg("vtotal"),
+        py::arg("vtang"),
+        py::arg("tol"),
+        py::arg("psi0"),
+        py::arg("nparticles")
+        );
+        
+    m.def("particle_fullorbit_tracing", &particle_fullorbit_tracing<xt::pytensor>,
+        py::arg("field"),
+        py::arg("xyz_init"),
+        py::arg("v_init"),
         py::arg("m"),
         py::arg("q"),
         py::arg("vtotal"),
