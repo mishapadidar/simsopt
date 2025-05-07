@@ -14,7 +14,7 @@ from typing import Union, Callable
 import logging
 
 import numpy as np
-from scipy.optimize import least_squares, minimize
+from scipy.optimize import least_squares, minimize as scipy_minimize
 from scipy.optimize import NonlinearConstraint, LinearConstraint
 
 from ..objectives.least_squares import LeastSquaresProblem
@@ -33,6 +33,7 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
                                abs_step: float = 1.0e-7,
                                rel_step: float = 0.0,
                                diff_method: str = "forward",
+                               save_residuals: bool = False,
                                **kwargs):
     """
     Solve a nonlinear-least-squares minimization problem using
@@ -52,6 +53,8 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
              ``"forward"``. If ``"centered"``, centered finite differences will
              be used. If ``"forward"``, one-sided finite differences will
              be used. Else, error is raised.
+        save_residuals: Whether to save the residuals at each iteration.
+             This can be useful for debugging, although the file can become large.
         kwargs: Any arguments to pass to
                 `scipy.optimize.least_squares <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html>`_.
                 For instance, you can supply ``max_nfev=100`` to set
@@ -62,7 +65,8 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
 
     datestr = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     objective_file = open(f"simsopt_{datestr}.dat", 'w')
-    residuals_file = open(f"residuals_{datestr}.dat", 'w')
+    if save_residuals:
+        residuals_file = open(f"residuals_{datestr}.dat", 'w')
 
     nevals = 0
     start_time = time()
@@ -105,15 +109,16 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
                 objective_file.write(f",x({j})")
             objective_file.write(",objective_function\n")
 
-            residuals_file.write(
-                f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")
-            residuals_file.write("function_evaluation,seconds")
-            for j in range(ndofs):
-                residuals_file.write(f",x({j})")
-            residuals_file.write(",objective_function")
-            for j in range(len(residuals)):
-                residuals_file.write(f",F({j})")
-            residuals_file.write("\n")
+            if save_residuals:
+                residuals_file.write(
+                    f"Problem type:\nleast_squares\nnparams:\n{ndofs}\n")
+                residuals_file.write("function_evaluation,seconds")
+                for j in range(ndofs):
+                    residuals_file.write(f",x({j})")
+                residuals_file.write(",objective_function")
+                for j in range(len(residuals)):
+                    residuals_file.write(f",F({j})")
+                residuals_file.write("\n")
 
         elapsed_t = time() - start_time
         objective_file.write(f"{nevals:6d},{elapsed_t:12.4e}")
@@ -123,14 +128,15 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
         objective_file.write("\n")
         objective_file.flush()
 
-        residuals_file.write(f"{nevals:6d},{elapsed_t:12.4e}")
-        for xj in x:
-            residuals_file.write(f",{xj:24.16e}")
-        residuals_file.write(f",{objective_val:24.16e}")
-        for fj in residuals:
-            residuals_file.write(f",{fj:24.16e}")
-        residuals_file.write("\n")
-        residuals_file.flush()
+        if save_residuals:
+            residuals_file.write(f"{nevals:6d},{elapsed_t:12.4e}")
+            for xj in x:
+                residuals_file.write(f",{xj:24.16e}")
+            residuals_file.write(f",{objective_val:24.16e}")
+            for fj in residuals:
+                residuals_file.write(f",{fj:24.16e}")
+            residuals_file.write("\n")
+            residuals_file.flush()
 
         nevals += 1
         return residuals
@@ -154,7 +160,8 @@ def least_squares_serial_solve(prob: LeastSquaresProblem,
 
     datalogging_started = False
     objective_file.close()
-    residuals_file.close()
+    if save_residuals:
+        residuals_file.close()
     logger.info("Completed solve.")
 
     prob.x = result.x
@@ -254,7 +261,7 @@ def serial_solve(prob: Union[Optimizable, Callable],
                                    **kwargs)
         else:
             logger.info("Using derivative-free method")
-            result = minimize(objective, x0, options={'disp': True}, **kwargs)
+            result = scipy_minimize(objective, x0, options={'disp': True}, **kwargs)
 
         datalogging_started = False
         logger.info("Completed solve.")
@@ -268,10 +275,15 @@ def constrained_serial_solve(prob: ConstrainedProblem,
                              rel_step: float = 0.0,
                              diff_method: str = "forward",
                              opt_method: str = "SLSQP",
+                             opt_handle: Callable = scipy_minimize,
                              options: dict = None):
     """
-    Solve a constrained minimization problem using
-    scipy.optimize, and without using any parallelization.
+    Solve a constrained minimization problem without using any parallelization.
+
+    The function calls an minimization solver, opt_handle. The default method calls
+    the SLSQP solver through scipy's minimize routine (opt_handle = scipy_minimize).
+    Custom optimization methods, or other solvers from other packages can be specified
+    through opt_handle.
 
     Args:
         prob: :obj:`~simsopt.objectives.ConstrainedProblem` object defining the
@@ -292,6 +304,25 @@ def constrained_serial_solve(prob: ConstrainedProblem,
             derivative-free optimization. See
             `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_
             for a description of the methods.
+        opt_handle: A function handle to an optimization method. This is useful for using custom optimization methods or methods
+            outside of scipy. Defaults to calling scipy's minimize routine.
+            If grad=True, then opt_handle should have a function signature,
+            result = opt_handle(objective, x0, jac=obj_jac,
+                        bounds=bounds, constraints=constraints,
+                        method=opt_method, options=options)
+            Otherwise the function signature should be,
+            result = opt_handle(objective, x0,
+                        bounds=bounds, constraints=constraints,
+                        method=opt_method, options=options).
+            The result MUST have the attribute result.x which returns the optimal point.
+
+            objective: callable, function handle to the objective
+            x0: array, incumbent solution
+            jac: callable, handle to the objectives jacobian
+            bounds: list of tuples of lower and upper bounds, i.e. [(0.0, 1.0), ..., (-1.0, 4.0)]
+            constraints: list containing any scipy.NonlinearConstraint and scipy.LinearConstraint instances.
+            opt_method: str, Same argument as this function.
+            options: dict, dictionary of options. Same argument as this function.
         options: dict, ``options`` keyword which is passed to
             `scipy.optimize.minimize <https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html#scipy.optimize.minimize>`_.
     """
@@ -399,7 +430,7 @@ def constrained_serial_solve(prob: ConstrainedProblem,
             nlc = NonlinearConstraint(_nlc, lb=-np.inf, ub=0.0, jac=fd_nlc.jac)
             constraints.append(nlc)
         # optimize
-        result = minimize(_obj, x0, jac=fd_obj,
+        result = opt_handle(_obj, x0, jac=fd_obj,
                           bounds=bounds, constraints=constraints,
                           method=opt_method, options=options)
     else:
@@ -408,7 +439,7 @@ def constrained_serial_solve(prob: ConstrainedProblem,
             nlc = NonlinearConstraint(_nlc, lb=-np.inf, ub=0.0)
             constraints.append(nlc)
         # optimize
-        result = minimize(_obj, x0,
+        result = opt_handle(_obj, x0,
                           bounds=bounds, constraints=constraints,
                           method=opt_method, options=options)
 

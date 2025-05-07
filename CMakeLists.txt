@@ -5,6 +5,8 @@ project(simsoptpp LANGUAGES CXX)
 enable_language(CUDA)
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_80 -lineinfo")
 
+find_package(CUDA REQUIRED)
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -60,11 +62,11 @@ else()
     unset(COMPILER_SUPPORTS_MARCH_NATIVE CACHE)
     CHECK_CXX_COMPILER_FLAG(-march=native COMPILER_SUPPORTS_MARCH_NATIVE)
     if(COMPILER_SUPPORTS_MARCH_NATIVE)
-    	set(CMAKE_CXX_FLAGS "-O3 -march=native -mfma -ffp-contract=fast")
-    elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "arm64")  
-    	set(CMAKE_CXX_FLAGS "-O3 -mcpu=apple-a14 -mfma -ffp-contract=fast")
+        set(CMAKE_CXX_FLAGS "-O3 -march=native -ffp-contract=fast")
+    elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "arm64")
+        set(CMAKE_CXX_FLAGS "-O3 -mcpu=apple-a14 -ffp-contract=fast")
     else()
-    	set(CMAKE_CXX_FLAGS "-O3 -ffp-contract=fast")
+        set(CMAKE_CXX_FLAGS "-O3 -ffp-contract=fast")
     endif()
 endif()
 # Ensure all code used from Eigen does not have LGPL license:
@@ -115,7 +117,6 @@ else()
     message(STATUS "Boost include dirs are ${Boost_INCLUDE_DIRS}")
 endif()
 
-# add_subdirectory(thirdparty/pybind11)
 add_subdirectory(thirdparty/fmt EXCLUDE_FROM_ALL)
 set(XTENSOR_USE_OPENMP 0)
 set(XTENSOR_USE_TBB 0)
@@ -124,6 +125,7 @@ set(XTENSOR_USE_TBB 0)
 
 pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/python.cpp src/simsoptpp/python_surfaces.cpp src/simsoptpp/python_curves.cpp
+    src/simsoptpp/boozerresidual_py.cpp
     src/simsoptpp/python_magneticfield.cpp src/simsoptpp/python_tracing.cpp src/simsoptpp/python_distance.cpp
     src/simsoptpp/biot_savart_py.cpp
     src/simsoptpp/biot_savart_vjp_py.cpp
@@ -133,11 +135,13 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/integral_BdotN.cpp
     src/simsoptpp/dipole_field.cpp src/simsoptpp/permanent_magnet_optimization.cpp
     src/simsoptpp/dommaschk.cpp src/simsoptpp/reiman.cpp src/simsoptpp/tracing.cpp 
-    src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp
+    src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp 
+    src/simsoptpp/magneticfield_wireframe.cpp
     src/simsoptpp/boozerradialinterpolant.cpp
-    src/simsoptpp/cuda_wrapper.cpp
-    src/simsoptpp/cuda_kernel.cu
-    )
+    src/simsoptpp/tracing_cuda_kernel.cu
+    src/simsoptpp/tracing_cuda_wrapper.cpp
+    ${GSL_TARGETS}
+)
 
 set_target_properties(${PROJECT_NAME}
     PROPERTIES

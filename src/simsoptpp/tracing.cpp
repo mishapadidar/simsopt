@@ -79,7 +79,6 @@ class GuidingCenterVacuumRHS {
         }
 };
 
-template<template<class, std::size_t, xt::layout_type> class T>
 class GuidingCenterVacuumBoozerRHS {
     /*
      * The state consists of :math:`[s, t, z, v_par]` with
@@ -496,7 +495,93 @@ particle_guiding_center_tracing(
         throw std::logic_error("Guiding center right hand side currently only implemented for vacuum fields.");
 }
 
-template<template<class, std::size_t, xt::layout_type> class T>
+// compute derivative for a single point
+void particle_guiding_center_boozer_derivs(
+        shared_ptr<BoozerMagneticField> field, array<double, 3> stz_init, array<double, 4>&  out,
+        double m, double q, double vtotal, double vtang)
+{
+    typename BoozerMagneticField::Array2 stz({{stz_init[0], stz_init[1], stz_init[2]}});
+    field->set_points(stz);
+    double modB = field->modB()(0);
+    double vperp2 = vtotal*vtotal - vtang*vtang;
+    double mu = vperp2/(2*modB);
+
+    double s = stz_init[0];
+    double t = stz_init[1];
+
+    array<double, 4> y = {s*cos(t), s*sin(t), stz_init[2], vtang};
+    auto rhs_class = GuidingCenterVacuumBoozerRHS(field, m, q, mu,2);
+
+    rhs_class(y, out, 0.0);
+
+}
+
+py::array_t<double> simsopt_derivs(shared_ptr<BoozerMagneticField> field, py::array_t<double> loc, double m, double q, double vtotal, double vtang){
+
+
+    py::buffer_info loc_buf = loc.request();
+    double* loc_arr = static_cast<double*>(loc_buf.ptr);
+
+    double out[4];
+    array<double, 3> stz = {loc_arr[0], loc_arr[1], loc_arr[2]};
+
+    array<double, 4> derivs;
+    particle_guiding_center_boozer_derivs(field, stz, derivs, m, q, vtotal, vtang);
+
+    for(int i=0; i<4; ++i){
+        out[i] = derivs[i];
+    }
+
+    double s = loc_arr[0];
+    double theta = loc_arr[1];
+    
+    // map to "pseudo-Cartesian coordinates"
+    // double dy1dt = out[0]*cos(theta) - s * sin(theta) * out[1];
+    // double dy2dt = out[0]*sin(theta) + s * cos(theta) * out[1];
+
+    // out[0] = dy1dt;
+    // out[1] = dy2dt;
+
+
+    auto result = py::array_t<double>(4, out);
+
+
+
+    return result;
+
+}
+
+/**
+ * @brief Traces the guiding center of a particle in a Boozer magnetic field.
+ *
+ * @param field Shared pointer to the BoozerMagneticField object.
+ * @param stz_init Initial position of the particle in Boozer coordinates (s, theta, zeta).
+ * @param m Mass of the particle.
+ * @param q Charge of the particle.
+ * @param vtotal Total velocity of the particle.
+ * @param vtang Tangential velocity of the particle.
+ * @param tmax Maximum time for the simulation.
+ * @param dt Initial time step for the simulation.
+ * @param abstol Absolute tolerance for the adaptive time stepper.
+ * @param reltol Relative tolerance for the adaptive time stepper.
+ * @param roottol Tolerance for root finding.
+ * @param vacuum Boolean flag indicating if the field is a vacuum field.
+ * @param noK Boolean flag indicating if the K term should be ignored.
+ * @param solveSympl Boolean flag indicating if the symplectic solver should be used.
+ * @param zetas Vector of zeta values for stopping criteria.
+ * @param omegas Vector of omega values for stopping criteria.
+ * @param stopping_criteria Vector of shared pointers to stopping criteria objects.
+ * @param dt_save Time step for saving the results.
+ * @param vpars Vector of additional parameters for the velocity.
+ * @param zetas_stop Boolean flag indicating if zeta stopping criteria should be used.
+ * @param vpars_stop Boolean flag indicating if velocity parameter stopping criteria should be used.
+ * @param forget_exact_path Boolean flag indicating if the exact path should be forgotten.
+ * @param axis Defines handling of coordinate singularity. If 0, tracing is performed in Boozer coordinates (s,theta,zeta). If 1, tracing is performed in coordinates (sqrt(s)*cos(theta), sqrt(s)*sin(theta), zeta). If 2, tracing is performed in coordinates (s*cos(theta),s*sin(theta),zeta). Option 2 is recommended. 
+ * @param predictor_step Boolean flag indicating if predictor step should be used.
+ * @return A tuple containing two vectors: the first vector contains arrays of size 5, and the second vector contains arrays of size 6.
+ * 
+ * @throws std::invalid_argument if dt is not positive.
+ */
 tuple<vector<array<double, 5>>, vector<array<double, 6>>>
 particle_guiding_center_tracing_gpu(
         shared_ptr<MagneticField<T>> field, array<double, 3> xyz_init,
