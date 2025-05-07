@@ -23,7 +23,6 @@ extern "C" py::array_t<double> test_derivatives(py::array_t<double> quad_pts, py
 extern "C" vector<double> test_timestep(py::array_t<double> quad_pts, py::array_t<double> srange,
         py::array_t<double> trange, py::array_t<double> zrange, py::array_t<double> stz_init, double m, double q, double vtotal, py::array_t<double> vtang, 
         double tol, double psi0, int nparticles);
-
 void init_tracing(py::module_ &m){
 
 
@@ -72,18 +71,9 @@ void init_tracing(py::module_ &m){
         py::arg("tmax"),
         py::arg("tol"),
         py::arg("vacuum"),
-        py::arg("noK"),
-        py::arg("zetas")=vector<double>{},
-        py::arg("omegas")=vector<double>{},
-        py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{},
-        py::arg("dt_save")=1e-6,
-        py::arg("zetas_stop")=false,
-        py::arg("vpars_stop")=false,
-        py::arg("forget_exact_path")=false,
-        py::arg("axis")=0,
-        py::arg("vpars")=vector<double>{}
-    );
-
+        py::arg("phis")=vector<double>{},
+        py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{}
+        );
 
     m.def("gpu_tracing", &gpu_tracing,
         py::arg("quad_pts"),
@@ -167,71 +157,19 @@ void init_tracing(py::module_ &m){
         py::arg("v_init"),
         py::arg("m"),
         py::arg("q"),
-        py::arg("vtotal"),
-        py::arg("vtang"),
         py::arg("tmax"),
         py::arg("tol"),
-        py::arg("psi0"),
-        py::arg("nparticles")
+        py::arg("phis")=vector<double>{},
+        py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{}
         );
 
-    m.def("test_interpolation", &test_interpolation,
-        py::arg("quad_pts"),
-        py::arg("srange"),
-        py::arg("trange"),
-        py::arg("zrange"),
-        py::arg("loc"),
-        py::arg("n")
-        );
+    m.def("fieldline_tracing", &fieldline_tracing<xt::pytensor>,
+            py::arg("field"),
+            py::arg("xyz_init"),
+            py::arg("tmax"),
+            py::arg("tol"),
+            py::arg("phis")=vector<double>{},
+            py::arg("stopping_criteria")=vector<shared_ptr<StoppingCriterion>>{});
 
-    m.def("test_gpu_interpolation", &test_gpu_interpolation,
-        py::arg("quad_pts"),
-        py::arg("srange"),
-        py::arg("trange"),
-        py::arg("zrange"),
-        py::arg("loc"),
-        py::arg("n"),
-        py::arg("n_points")
-        );
-
-
-    m.def("test_derivatives", &test_derivatives,
-        py::arg("quad_pts"),
-        py::arg("srange"),
-        py::arg("trange"),
-        py::arg("zrange"),
-        py::arg("loc"),
-        py::arg("vpar"),
-        py::arg("v_total"),
-        py::arg("m"),
-        py::arg("q"),
-        py::arg("psi0"),
-        py::arg("n_points")
-        );
-
-
-
-    m.def("simsopt_derivs", &simsopt_derivs,
-        py::arg("field"),
-        py::arg("loc"),
-        py::arg("m"),
-        py::arg("q"),
-        py::arg("vtotal"),
-        py::arg("vtang")
-        );
-
-    m.def("test_timestep", &test_timestep,
-        py::arg("quad_pts"),
-        py::arg("srange"),
-        py::arg("trange"),
-        py::arg("zrange"),
-        py::arg("stz_init"),
-        py::arg("m"),
-        py::arg("q"),
-        py::arg("vtotal"),
-        py::arg("vtang"),
-        py::arg("tol"),
-        py::arg("psi0"),
-        py::arg("nparticles")
-        );
+    m.def("get_phi", &get_phi);
 }

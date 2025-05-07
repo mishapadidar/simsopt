@@ -138,6 +138,7 @@ pybind11_add_module(${PROJECT_NAME}
     src/simsoptpp/magneticfield_biotsavart.cpp src/simsoptpp/python_boozermagneticfield.cpp 
     src/simsoptpp/magneticfield_wireframe.cpp
     src/simsoptpp/boozerradialinterpolant.cpp
+    src/simsoptpp/wireframe_optimization.cpp
     src/simsoptpp/tracing_cuda_kernel.cu
     src/simsoptpp/tracing_cuda_wrapper.cpp
     ${GSL_TARGETS}

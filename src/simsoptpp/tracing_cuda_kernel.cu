@@ -273,8 +273,8 @@ __host__ __device__ void adjust_time(particle_t& p, double tmax){
     // Compute  error
     // https://live.boost.org/doc/libs/1_82_0/libs/numeric/odeint/doc/html/boost_numeric_odeint/odeint_in_detail/steppers.html
     // resolve typo in boost docs: https://numerical.recipes/book.html
-    double atol=1e-9;
-    double rtol=1e-9;
+    double atol=1e-8;
+    double rtol=1e-8;
     double err = 0.0;
     bool accept = true;
     for (int i = 0; i < 4; i++) {
